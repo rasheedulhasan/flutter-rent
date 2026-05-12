@@ -19,6 +19,7 @@ class MockData {
   static UserModel get currentUser => UserModel(
         id: 'usr_001',
         name: 'John Doe',
+        fullName: 'John Doe',
         email: 'john.doe@promanager.com',
         phone: '+1 (555) 123-4567',
         avatarUrl: '',

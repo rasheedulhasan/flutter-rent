@@ -5,6 +5,7 @@ import 'package:birdle/models/room_model.dart';
 import 'package:birdle/models/tenant_booking_dto.dart';
 import 'package:birdle/services/room_service.dart';
 import 'package:birdle/services/tenant_booking_service.dart';
+import 'package:birdle/services/auth_service.dart';
 
 /// Room Booking Screen
 /// Matches the ProManager HTML design with:
@@ -21,6 +22,7 @@ class RoomBookingScreen extends StatefulWidget {
 }
 
 class _RoomBookingScreenState extends State<RoomBookingScreen> {
+  final AuthService _authService = AuthService();
   final TenantBookingService _bookingService = TenantBookingService();
   final RoomService _roomService = RoomService();
   final _nameController = TextEditingController();
@@ -91,11 +93,12 @@ class _RoomBookingScreenState extends State<RoomBookingScreen> {
         }
         _buildings = buildingSet.toList()..sort();
 
-        // Auto-select first building if available
-        if (_buildings.isNotEmpty) {
-          _selectedBuilding = _buildings.first;
-          _onBuildingChanged(_buildings.first);
-        }
+        // Start with blank dropdowns — show ALL rooms by default
+        _selectedBuilding = null;
+        _selectedFloor = null;
+        _selectedRoom = null;
+        _floors = [];
+        _availableRooms = List.from(rooms);
 
         _isLoadingRooms = false;
       });
@@ -109,7 +112,7 @@ class _RoomBookingScreenState extends State<RoomBookingScreen> {
   }
 
   /// Called when the selected building changes.
-  /// Updates the floors and available rooms lists.
+  /// Updates the floors list but does NOT filter rooms until floor is also selected.
   void _onBuildingChanged(String building) {
     setState(() {
       _selectedBuilding = building;
@@ -131,34 +134,23 @@ class _RoomBookingScreenState extends State<RoomBookingScreen> {
       }
       _floors = floorSet.toList()..sort();
 
-      // Auto-select first floor if available
-      if (_floors.isNotEmpty) {
-        _selectedFloor = _floors.first;
-        _onFloorChanged(_floors.first);
-      }
+      // Show all rooms in this building until floor is also selected
+      _availableRooms = List.from(buildingRooms);
     });
   }
 
   /// Called when the selected floor changes.
-  /// Updates the available rooms list.
+  /// Filters rooms by both building and floor. Does NOT auto-select a room.
   void _onFloorChanged(String floor) {
     setState(() {
       _selectedFloor = floor;
       _selectedRoom = null;
 
+      // Filter rooms by selected building + floor (show all statuses)
       _availableRooms = _allRooms.where((r) {
         final name = r.buildingName ?? r.buildingId ?? 'Unknown';
         return name == _selectedBuilding && r.floor == floor;
       }).toList();
-
-      // Auto-select first vacant room if available, otherwise first room
-      final vacantRooms =
-          _availableRooms.where((r) => r.isVacant).toList();
-      if (vacantRooms.isNotEmpty) {
-        _selectedRoom = vacantRooms.first;
-      } else if (_availableRooms.isNotEmpty) {
-        _selectedRoom = _availableRooms.first;
-      }
     });
   }
 
@@ -329,7 +321,7 @@ class _RoomBookingScreenState extends State<RoomBookingScreen> {
                           color: AppTheme.primaryFixed,
                           child: Center(
                             child: Text(
-                              'JD',
+                              _authService.currentUser?.initials ?? '?',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -717,7 +709,7 @@ class _RoomBookingScreenState extends State<RoomBookingScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          room.displayLabel,
+                          room.roomNumber,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

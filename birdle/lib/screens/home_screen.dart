@@ -6,6 +6,8 @@ import 'package:birdle/screens/tenants_screen.dart';
 import 'package:birdle/screens/invoices_screen.dart';
 import 'package:birdle/screens/reports_screen.dart';
 import 'package:birdle/screens/pending_rent_screen.dart';
+import 'package:birdle/screens/room_booking_screen.dart';
+import 'package:birdle/services/auth_service.dart';
 
 /// Main home screen with ProManager layout:
 /// - TopAppBar with menu + profile (matches HTML)
@@ -21,8 +23,43 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final AuthService _authService = AuthService();
   int _currentIndex = 0;
   List<Widget> _screens = [];
+
+  /// Logs the user out and navigates back to the login screen.
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
+  /// Returns the user's initials from the authenticated user, or '?' if not available.
+  String get _userInitials {
+    final user = _authService.currentUser;
+    if (user != null) {
+      return user.initials;
+    }
+    return '?';
+  }
+
+  /// Returns the user's full name from the authenticated user, or a fallback.
+  String get _userDisplayName {
+    final user = _authService.currentUser;
+    if (user != null) {
+      return user.fullName.isNotEmpty ? user.fullName : user.name;
+    }
+    return 'User';
+  }
+
+  /// Returns the user's role from the authenticated user, or a fallback.
+  String get _userRole {
+    final user = _authService.currentUser;
+    if (user != null) {
+      return user.role;
+    }
+    return 'User';
+  }
 
   @override
   void initState() {
@@ -31,6 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
       DashboardScreen(
         onNavigateToOrders: () {
           if (mounted) setState(() => _currentIndex = 3);
+        },
+        onNavigateToBooking: () {
+          // Navigate directly to RoomBookingScreen instead of tenants list
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const RoomBookingScreen(),
+            ),
+          );
+        },
+        onNavigateToPendingRent: () {
+          if (mounted) setState(() => _currentIndex = 2);
         },
       ),
       const TenantsScreen(),
@@ -144,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppTheme.primaryFixed,
                           child: Center(
                             child: Text(
-                              'JD',
+                              _userInitials,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -268,6 +316,37 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     }),
+                    // Logout button at the bottom of the sidebar
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: _handleLogout,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.logout_rounded,
+                              size: 20,
+                              color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Logout',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -379,10 +458,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Text(
-                                'JD',
-                                style: TextStyle(
+                                _userInitials,
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 20,
@@ -392,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'John Doe',
+                            _userDisplayName,
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -401,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Manager',
+                            _userRole,
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               color: Colors.white.withValues(alpha: 0.8),
@@ -494,6 +573,18 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.of(context).pushNamed('/profile');
                             },
                           ),
+                          const SizedBox(height: 8),
+                          Divider(color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant),
+                          _DrawerItem(
+                            icon: Icons.logout_rounded,
+                            title: 'Logout',
+                            isDark: isDark,
+                            onTap: () {
+                              Navigator.pop(context);
+                              _handleLogout();
+                            },
+                          ),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),

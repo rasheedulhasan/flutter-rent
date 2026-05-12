@@ -10,8 +10,15 @@ import 'package:intl/intl.dart';
 /// Matches the HTML design with KPI bento grid, operational actions, and more.
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onNavigateToOrders;
+  final VoidCallback? onNavigateToBooking;
+  final VoidCallback? onNavigateToPendingRent;
 
-  const DashboardScreen({super.key, this.onNavigateToOrders});
+  const DashboardScreen({
+    super.key,
+    this.onNavigateToOrders,
+    this.onNavigateToBooking,
+    this.onNavigateToPendingRent,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -27,8 +34,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   int _pendingRooms = 0;
   int _totalRooms = 0;
   double _occupancyRate = 0;
-  String _userName = 'John Doe';
-  String _userRole = 'Manager';
+  String _userName = '';
+  String _userRole = '';
 
   @override
   bool get wantKeepAlive => true;
@@ -57,9 +64,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _rentDueThisWeek = response.summary.totalPendingAmount;
         _occupancyRate = 0; // Occupancy rate not available from this endpoint
 
-        // Use authenticated user info if available
+        // Use authenticated user info from the singleton AuthService
+        // The user's full_name comes from the /users/validate endpoint response
         if (_authService.currentUser != null) {
-          _userName = _authService.currentUser!.name;
+          _userName = _authService.currentUser!.fullName.isNotEmpty
+              ? _authService.currentUser!.fullName
+              : _authService.currentUser!.name;
           _userRole = _authService.currentUser!.role;
         }
 
@@ -426,7 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   Widget _buildPendingRentButton() {
     return GestureDetector(
-      onTap: () {},
+      onTap: widget.onNavigateToPendingRent,
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -496,7 +506,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   Widget _buildNewBookingButton() {
     return GestureDetector(
-      onTap: () {},
+      onTap: widget.onNavigateToBooking,
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
