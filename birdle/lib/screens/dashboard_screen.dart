@@ -47,19 +47,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // Load dashboard stats from services
-      final summary = await _pendingRentService.getSummary();
-      final allRooms = await _pendingRentService.getAllRooms();
-      final occupiedRooms = allRooms.where((r) => r.isOccupied).toList();
+      // Load dashboard stats from the pending rent API
+      final response = await _pendingRentService.getPendingRentItems();
 
       if (!mounted) return;
       setState(() {
-        _totalRooms = allRooms.length;
-        _pendingRooms = summary.pendingPayments;
-        _rentDueThisWeek = summary.totalPendingAmount;
-        _occupancyRate = _totalRooms > 0
-            ? (occupiedRooms.length / _totalRooms) * 100
-            : 0;
+        _totalRooms = response.total;
+        _pendingRooms = response.summary.totalItems;
+        _rentDueThisWeek = response.summary.totalPendingAmount;
+        _occupancyRate = 0; // Occupancy rate not available from this endpoint
 
         // Use authenticated user info if available
         if (_authService.currentUser != null) {

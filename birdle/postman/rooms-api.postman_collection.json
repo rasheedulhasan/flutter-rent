@@ -1,0 +1,337 @@
+{
+  "info": {
+    "name": "Birdle - Rooms API",
+    "description": "Postman collection for testing the Rooms API endpoints of the Birdle Rent Management system.\n\n**Base URL:** `https://monkfish-app-a3cq3.ondigitalocean.app/rent-management/api`\n\n**Auth:** Most endpoints require a Bearer token obtained from the Login endpoint. The collection uses a `token` variable that gets auto-set after login.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "birdle-dev"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://monkfish-app-a3cq3.ondigitalocean.app/rent-management/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "room_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenant_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints. Login first to obtain a Bearer token for subsequent requests.",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.success === true && jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "    console.log('Token saved successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/validate",
+              "host": ["{{base_url}}"],
+              "path": ["users", "validate"]
+            },
+            "description": "Authenticate and receive a Bearer token. The token is automatically saved to the `token` variable for use in subsequent requests.\n\n**Request Body:**\n- `username` (string, required)\n- `password` (string, required)\n\n**Response (success):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"eyJ...\",\n    \"user\": { ... }\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["users", "forgot-password"]
+            },
+            "description": "Send a forgot password request."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "description": "CRUD endpoints for managing rooms.",
+      "item": [
+        {
+          "name": "Get All Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rooms",
+              "host": ["{{base_url}}"],
+              "path": ["rooms"]
+            },
+            "description": "Fetch all rooms.\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": [\n    {\n      \"$id\": \"room_001\",\n      \"building_id\": \"Central Square Tower\",\n      \"room_number\": \"101\",\n      \"floor\": \"1\",\n      \"type\": \"Studio\",\n      \"monthly_rent\": 1800.00,\n      \"size\": 450.00,\n      \"amenities\": \"AC, WiFi, Furnished\",\n      \"status\": \"occupied\"\n    }\n  ]\n}\n```"
+          }
+        },
+        {
+          "name": "Get Room by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rooms/{{room_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "{{room_id}}"]
+            },
+            "description": "Fetch a single room by its ID.\n\n**Path Variables:**\n- `room_id`: The room ID (e.g., `room_001`)"
+          }
+        },
+        {
+          "name": "Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"building_id\": \"Central Square Tower\",\n  \"room_number\": \"501\",\n  \"floor\": \"5\",\n  \"type\": \"Penthouse\",\n  \"monthly_rent\": 5000.00,\n  \"size\": 1200.00,\n  \"amenities\": \"AC, WiFi, Furnished, Balcony, Parking\",\n  \"status\": \"available\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rooms",
+              "host": ["{{base_url}}"],
+              "path": ["rooms"]
+            },
+            "description": "Create a new room.\n\n**Request Body:**\n- `building_id` (string, optional) — Building name or ID\n- `room_number` (string, required) — Room number/identifier\n- `floor` (string, required) — Floor level\n- `type` (string, required) — Room type (Studio, 1-Bedroom, 2-Bedroom, Penthouse)\n- `monthly_rent` (number, required) — Monthly rent amount\n- `size` (number, required) — Room size in sq ft\n- `amenities` (string, optional) — Comma-separated amenities\n- `status` (string, required) — `available` or `occupied`"
+          }
+        },
+        {
+          "name": "Update Room",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"building_id\": \"Central Square Tower\",\n  \"room_number\": \"501\",\n  \"floor\": \"5\",\n  \"type\": \"Penthouse\",\n  \"monthly_rent\": 5500.00,\n  \"size\": 1200.00,\n  \"amenities\": \"AC, WiFi, Furnished, Balcony, Parking, Gym Access\",\n  \"status\": \"available\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rooms/{{room_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "{{room_id}}"]
+            },
+            "description": "Update an existing room's details.\n\n**Path Variables:**\n- `room_id`: The room ID to update\n\n**Request Body:** Same fields as Create Room."
+          }
+        },
+        {
+          "name": "Patch Room",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"occupied\",\n  \"monthly_rent\": 5200.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rooms/{{room_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "{{room_id}}"]
+            },
+            "description": "Partially update a room (e.g., change status or rent amount).\n\n**Path Variables:**\n- `room_id`: The room ID to patch\n\n**Request Body:** Only include fields to update."
+          }
+        },
+        {
+          "name": "Delete Room",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rooms/{{room_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "{{room_id}}"]
+            },
+            "description": "Delete a room by its ID.\n\n**Path Variables:**\n- `room_id`: The room ID to delete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms - With Tenant Data",
+      "description": "Endpoints that combine room data with tenant information — used by the Pending Rent feature.",
+      "item": [
+        {
+          "name": "Get Room with Tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rooms/{{room_id}}/with-tenant",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "{{room_id}}", "with-tenant"]
+            },
+            "description": "Fetch a room along with its currently assigned tenant data.\n\n**Path Variables:**\n- `room_id`: The room ID\n\n**Expected Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"room\": { ... },\n    \"tenant\": { ... }\n  }\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants (Related to Rooms)",
+      "description": "Tenant endpoints commonly used alongside room operations.",
+      "item": [
+        {
+          "name": "Get Tenants by Room ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants?room_id={{room_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants"],
+              "query": [
+                {
+                  "key": "room_id",
+                  "value": "{{room_id}}"
+                }
+              ]
+            },
+            "description": "Fetch tenants filtered by room ID. Used to find which tenant occupies a given room.\n\n**Query Parameters:**\n- `room_id` (string, required) — Filter tenants by room"
+          }
+        },
+        {
+          "name": "Get All Tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants",
+              "host": ["{{base_url}}"],
+              "path": ["tenants"]
+            },
+            "description": "Fetch all tenants. Supports optional query parameters:\n- `status` — Filter by status (active, inactive, moved_out)\n- `room_id` — Filter by room ID\n- `limit` — Pagination limit (default 25)"
+          }
+        },
+        {
+          "name": "Get Tenant with Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/with-transactions",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "with-transactions"]
+            },
+            "description": "Fetch a tenant along with their rent payment transactions. Used to calculate pending rent.\n\n**Path Variables:**\n- `tenant_id`: The tenant ID (e.g., `tenant_001`)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "description": "Helper requests to set up collection variables from API responses.",
+      "item": [
+        {
+          "name": "Set Room ID from First Room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.success === true && jsonData.data) {",
+                  "    const data = jsonData.data;",
+                  "    const room = Array.isArray(data) ? data[0] : data;",
+                  "    const roomId = room.$id || room.id;",
+                  "    if (roomId) {",
+                  "        pm.collectionVariables.set('room_id', roomId);",
+                  "        console.log('Room ID set to:', roomId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/rooms",
+              "host": ["{{base_url}}"],
+              "path": ["rooms"]
+            },
+            "description": "Fetch all rooms and auto-save the first room's ID into the `room_id` variable. Run this before testing single-room endpoints."
+          }
+        }
+      ]
+    }
+  ]
+}

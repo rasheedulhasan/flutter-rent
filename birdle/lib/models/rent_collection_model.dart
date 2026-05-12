@@ -9,6 +9,10 @@ class RentCollectionModel {
   final int daysUntilDue; // negative = overdue days, positive = days remaining
   final String leaseType;
   final String? phoneNumber;
+  final String tenantId;
+  final String roomId;
+  final double monthlyRent;
+  final String dueDate;
 
   RentCollectionModel({
     required this.id,
@@ -19,6 +23,10 @@ class RentCollectionModel {
     required this.daysUntilDue,
     this.leaseType = 'Residential',
     this.phoneNumber,
+    this.tenantId = '',
+    this.roomId = '',
+    this.monthlyRent = 0.0,
+    this.dueDate = '',
   });
 
   factory RentCollectionModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +39,10 @@ class RentCollectionModel {
       daysUntilDue: json['daysUntilDue'] as int? ?? 0,
       leaseType: json['leaseType'] as String? ?? 'Residential',
       phoneNumber: json['phoneNumber'] as String?,
+      tenantId: json['tenantId'] as String? ?? '',
+      roomId: json['roomId'] as String? ?? '',
+      monthlyRent: (json['monthlyRent'] as num?)?.toDouble() ?? 0.0,
+      dueDate: json['dueDate'] as String? ?? '',
     );
   }
 
@@ -43,6 +55,10 @@ class RentCollectionModel {
         'daysUntilDue': daysUntilDue,
         'leaseType': leaseType,
         'phoneNumber': phoneNumber,
+        'tenantId': tenantId,
+        'roomId': roomId,
+        'monthlyRent': monthlyRent,
+        'dueDate': dueDate,
       };
 
   /// Returns a human-readable status label.

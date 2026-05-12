@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:birdle/core/app_theme.dart';
 import 'package:birdle/models/pending_rent_item.dart';
+import 'package:birdle/models/rent_collection_model.dart';
+import 'package:birdle/screens/rent_collection_form_screen.dart';
 import 'package:birdle/services/pending_rent_service.dart';
 import 'package:birdle/widgets/empty_state.dart';
 import 'package:birdle/widgets/skeleton_loader.dart';
 
 /// Pending Rent Screen
 ///
-/// Displays all occupied rooms with pending rent information.
-/// Features:
-/// - Summary cards (Total Rooms, Occupied, Pending Payments, Total Pending Amount)
-/// - Searchable room list with tenant and rent details
-/// - Pull to refresh
-/// - Loading skeletons
-/// - Empty state
-/// - Card actions (View Details, Collect Rent, Call, WhatsApp)
+/// Displays pending rent items fetched from the dedicated API endpoint.
+/// Design matches the provided HTML reference with:
+/// - Sticky search bar with timestamp
+/// - Cards grouped by status (Overdue / Due Today / Upcoming)
+/// - CALL and COLLECT RENT action buttons per card
+/// - Bento mini stat summary section
 class PendingRentScreen extends StatefulWidget {
   const PendingRentScreen({super.key});
 
@@ -23,17 +23,17 @@ class PendingRentScreen extends StatefulWidget {
   State<PendingRentScreen> createState() => _PendingRentScreenState();
 }
 
-class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKeepAliveClientMixin {
+class _PendingRentScreenState extends State<PendingRentScreen>
+    with AutomaticKeepAliveClientMixin {
   final PendingRentService _service = PendingRentService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  List<PendingRentItem> _pendingItems = [];
+  List<PendingRentItem> _allItems = [];
   List<PendingRentItem> _filteredItems = [];
+  PendingRentSummary? _summary;
   bool _isLoading = true;
   String? _errorMessage;
-  int _totalRooms = 0;
-  int _occupiedRooms = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -61,15 +61,12 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
     });
 
     try {
-      final items = await _service.getPendingRentItems();
-      final allRooms = await _service.getAllRooms();
-      final occupiedRooms = allRooms.where((r) => r.isOccupied).toList();
+      final response = await _service.getPendingRentItems();
       if (mounted) {
         setState(() {
-          _pendingItems = items;
-          _filteredItems = items;
-          _totalRooms = allRooms.length;
-          _occupiedRooms = occupiedRooms.length;
+          _allItems = response.data;
+          _filteredItems = response.data;
+          _summary = response.summary;
           _isLoading = false;
         });
       }
@@ -86,7 +83,7 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
   void _onSearchChanged() {
     final query = _searchController.text;
     setState(() {
-      _filteredItems = _service.searchItems(_pendingItems, query);
+      _filteredItems = _service.searchItems(_allItems, query);
     });
   }
 
@@ -94,49 +91,56 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
     await _loadData();
   }
 
-  void _onViewDetails(PendingRentItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Viewing details for ${item.tenant.fullName}'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  void _onCollectRent(PendingRentItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Collecting rent from ${item.tenant.fullName}...'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   void _onCallTenant(PendingRentItem item) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Calling ${item.tenant.fullName}...'),
+        content: Text('Calling ${item.tenantName}...'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  void _onWhatsAppTenant(PendingRentItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening WhatsApp for ${item.tenant.fullName}...'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  void _onCollectRent(PendingRentItem item) async {
+    final collection = _convertToRentCollectionModel(item);
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => RentCollectionFormScreen(collection: collection),
       ),
+    );
+
+    // If payment was successfully recorded, refresh the list
+    if (result == true && mounted) {
+      _loadData();
+    }
+  }
+
+  /// Converts a [PendingRentItem] to a [RentCollectionModel] for the form screen.
+  RentCollectionModel _convertToRentCollectionModel(PendingRentItem item) {
+    // Determine daysUntilDue: negative for overdue, positive for upcoming
+    final daysUntilDue = item.status == 'overdue'
+        ? -item.overdueDays
+        : item.remainingDays;
+
+    return RentCollectionModel(
+      id: item.tenantId,
+      roomNumber: item.roomNumber,
+      tenantName: item.tenantName,
+      amount: item.monthlyRent,
+      status: item.status,
+      daysUntilDue: daysUntilDue,
+      leaseType: 'Residential',
+      phoneNumber: null,
+      tenantId: item.tenantId,
+      roomId: item.roomId,
+      monthlyRent: item.monthlyRent,
+      dueDate: item.dueDate,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ColoredBox(
@@ -176,12 +180,31 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
             height: 64,
             child: Row(
               children: [
+                // Back button
+                GestureDetector(
+                  onTap: () {
+                    // TODO: Navigate back
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.arrow_back_rounded,
+                      color: isDark
+                          ? AppTheme.textSecondaryDark
+                          : AppTheme.onSurfaceVariant,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 Text(
                   'Pending Rent',
                   style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -204,6 +227,26 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
                           ? AppTheme.textSecondaryDark
                           : AppTheme.onSurfaceVariant,
                       size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Profile avatar
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(9999),
+                    color: AppTheme.surfaceContainer,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'PM',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
@@ -231,48 +274,10 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // Search bar
-          SliverToBoxAdapter(child: _buildSearchBar(isDark)),
+          // Sticky Search & Timestamp
+          SliverToBoxAdapter(child: _buildSearchAndTimestamp(isDark)),
 
-          // Summary cards
-          SliverToBoxAdapter(child: _buildSummaryCards(isDark)),
-
-          // Section header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Row(
-                children: [
-                  Text(
-                    'Pending Rent List',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${_filteredItems.length}',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.error,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Room list or empty state
+          // Rent List
           if (_filteredItems.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -284,12 +289,16 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    return _buildRoomCard(_filteredItems[index], isDark);
+                    return _buildRentCard(_filteredItems[index], isDark);
                   },
                   childCount: _filteredItems.length,
                 ),
               ),
             ),
+
+          // Bento Mini Stat Section
+          if (_filteredItems.isNotEmpty)
+            SliverToBoxAdapter(child: _buildMiniStats(isDark)),
         ],
       ),
     );
@@ -302,21 +311,8 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(child: _buildSearchBar(isDark)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: List.generate(4, (index) => Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(left: index > 0 ? 8 : 0),
-                    child: const StatCardSkeleton(),
-                  ),
-                )),
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: CardSkeleton(itemCount: 4)),
+          SliverToBoxAdapter(child: _buildSearchAndTimestamp(isDark)),
+          const SliverToBoxAdapter(child: CardSkeleton(itemCount: 3)),
         ],
       ),
     );
@@ -348,7 +344,8 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                color:
+                    isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
               ),
               textAlign: TextAlign.center,
             ),
@@ -357,7 +354,9 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
               _errorMessage ?? 'An unexpected error occurred.',
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                color: isDark
+                    ? AppTheme.textSecondaryDark
+                    : AppTheme.textSecondaryLight,
               ),
               textAlign: TextAlign.center,
             ),
@@ -380,632 +379,279 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
     return EmptyState(
       icon: Icons.check_circle_outline_rounded,
       title: 'All Rent Collected',
-      subtitle: 'All occupied rooms have their rent paid up to date.\nNo pending payments at this time.',
+      subtitle:
+          'All occupied rooms have their rent paid up to date.\nNo pending payments at this time.',
     );
   }
 
-  Widget _buildSearchBar(bool isDark) {
+  Widget _buildSearchAndTimestamp(bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.surfaceContainerLow : AppTheme.surfaceContainerLowest,
-          border: Border.all(
-            color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          style: GoogleFonts.inter(
-            fontSize: 15,
-            color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Search by room or tenant name...',
-            hintStyle: GoogleFonts.inter(
-              color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: isDark ? AppTheme.textSecondaryDark : AppTheme.outline,
-              size: 22,
-            ),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? GestureDetector(
-                    onTap: () {
-                      _searchController.clear();
-                    },
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: isDark ? AppTheme.textSecondaryDark : AppTheme.outline,
-                      size: 20,
-                    ),
-                  )
-                : null,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCards(bool isDark) {
-    final totalPendingAmount =
-        _filteredItems.fold(0.0, (sum, item) => sum + item.pendingAmount);
-    final pendingCount = _filteredItems.length;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Total Rooms & Occupied Rooms
-          Row(
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Total Rooms',
-                  value: '$_totalRooms',
-                  icon: Icons.meeting_room_rounded,
-                  color: AppTheme.primary,
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Occupied Rooms',
-                  value: '$_occupiedRooms',
-                  icon: Icons.person_pin_rounded,
-                  color: AppTheme.info,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Row 2: Pending Payments & Total Pending Amount
-          Row(
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Pending Payments',
-                  value: '$pendingCount',
-                  icon: Icons.pending_actions_rounded,
-                  color: AppTheme.warning,
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSummaryCard(
-                  title: 'Total Pending',
-                  value: 'AED ${_formatAmount(totalPendingAmount)}',
-                  icon: Icons.money_off_rounded,
-                  color: AppTheme.error,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-          width: 0.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
+          // Search bar
           Container(
-            width: 40,
-            height: 40,
+            height: 48,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+              color: isDark
+                  ? AppTheme.surfaceContainerLow
+                  : AppTheme.surfaceContainerLowest,
+              border: Border.all(
+                color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color:
+                    isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search by Room/Name...',
+                hintStyle: GoogleFonts.inter(
+                  color: isDark
+                      ? AppTheme.textSecondaryDark
+                      : AppTheme.onSurfaceVariant,
+                  fontSize: 15,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: isDark
+                      ? AppTheme.textSecondaryDark
+                      : AppTheme.outline,
+                  size: 22,
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                        },
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: isDark
+                              ? AppTheme.textSecondaryDark
+                              : AppTheme.outline,
+                          size: 20,
+                        ),
+                      )
+                    : null,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Timestamp
+          Row(
+            children: [
+              Icon(
+                Icons.history_rounded,
+                size: 16,
+                color: isDark
+                    ? AppTheme.textSecondaryDark
+                    : AppTheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'List updated: Today',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.05,
+                  color: isDark
+                      ? AppTheme.textSecondaryDark
+                      : AppTheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRoomCard(PendingRentItem item, bool isDark) {
-    final statusColor = _getStatusColor(item.paymentStatus);
-    final statusLabel = _getStatusLabel(item.paymentStatus);
+  Widget _buildRentCard(PendingRentItem item, bool isDark) {
+    final isOverdue = item.status == 'overdue';
+    final isDueToday = item.status == 'due_today';
+
+    // Determine card border color based on status
+    Color borderColor;
+    if (isOverdue) {
+      borderColor = AppTheme.errorContainer.withValues(alpha: 0.5);
+    } else if (isDueToday) {
+      borderColor = AppTheme.tertiaryContainer.withValues(alpha: 0.2);
+    } else {
+      borderColor = AppTheme.outlineVariant.withValues(alpha: 0.3);
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-          width: 0.5,
-        ),
+        color: isDark ? AppTheme.cardDark : AppTheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top section: Room info + Status badge
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Top row: Status badge + Room info (left) | Amount (right)
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Room icon
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      item.room.roomNumber,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Room details
+                // Left: Status badge + Room + Tenant
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Status badge
+                      _buildStatusBadge(item),
+                      const SizedBox(height: 8),
+                      // Room number
                       Text(
-                        'Room ${item.room.roomNumber}',
+                        'Room ${item.roomNumber}',
                         style: GoogleFonts.inter(
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
+                          color: isDark
+                              ? AppTheme.textPrimaryDark
+                              : AppTheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
+                      // Tenant name
                       Text(
-                        item.buildingName,
+                        'Tenant: ${item.tenantName}',
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
+                          color: isDark
+                              ? AppTheme.textSecondaryDark
+                              : AppTheme.onSurfaceVariant,
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          _buildInfoChip(Icons.layers_rounded, 'Floor ${item.room.floor}', isDark),
-                          const SizedBox(width: 8),
-                          _buildInfoChip(Icons.home_work_rounded, item.room.type, isDark),
-                        ],
                       ),
                     ],
                   ),
                 ),
-                // Status badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.3),
-                      width: 0.5,
+                // Right: Amount
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$${_formatAmount(item.monthlyRent)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: isOverdue
+                            ? AppTheme.error
+                            : isDueToday
+                                ? AppTheme.tertiaryContainer
+                                : AppTheme.onSurface,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          shape: BoxShape.circle,
-                        ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.dueDescription,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.05,
+                        color: isOverdue
+                            ? AppTheme.error
+                            : isDueToday
+                                ? AppTheme.tertiaryContainer
+                                : AppTheme.onSurfaceVariant,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusLabel,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-
-          // Divider
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Divider(
-              color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-              height: 1,
-            ),
-          ),
-
-          // Tenant info section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
+            const SizedBox(height: 16),
+            // Action buttons: CALL + COLLECT RENT
+            Row(
               children: [
-                // Tenant avatar
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryFixed.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _getInitials(item.tenant.fullName),
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.primary,
+                // CALL button
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _onCallTenant(item),
+                      icon: const Icon(Icons.call_rounded, size: 18),
+                      label: Text(
+                        'CALL',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.05,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: isDark
+                              ? AppTheme.borderDark
+                              : AppTheme.outlineVariant,
+                        ),
+                        foregroundColor: isDark
+                            ? AppTheme.textPrimaryDark
+                            : AppTheme.onSurface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
+                // COLLECT RENT button
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.tenant.fullName,
+                  flex: 2,
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _onCollectRent(item),
+                      icon: const Icon(Icons.payments_rounded, size: 18),
+                      label: Text(
+                        'COLLECT RENT',
                         style: GoogleFonts.inter(
-                          fontSize: 14,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
+                          letterSpacing: 0.05,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(Icons.phone_rounded, size: 12,
-                              color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant),
-                          const SizedBox(width: 4),
-                          Text(
-                            item.tenant.phoneNumber,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Check-in date
-                if (item.tenant.checkInDate != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Check-in',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: AppTheme.onPrimary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatDate(item.tenant.checkInDate!),
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-
-          // Divider
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Divider(
-              color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-              height: 1,
-            ),
-          ),
-
-          // Rent info section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                // Monthly Rent
-                Expanded(
-                  child: _buildRentInfoTile(
-                    label: 'Monthly Rent',
-                    value: 'AED ${_formatAmount(item.tenant.monthlyRent)}',
-                    isDark: isDark,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 36,
-                  color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-                ),
-                // Pending Amount
-                Expanded(
-                  child: _buildRentInfoTile(
-                    label: 'Pending',
-                    value: 'AED ${_formatAmount(item.pendingAmount)}',
-                    valueColor: statusColor,
-                    isDark: isDark,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 36,
-                  color: isDark ? AppTheme.borderDark : AppTheme.outlineVariant,
-                ),
-                // Last Paid
-                Expanded(
-                  child: _buildRentInfoTile(
-                    label: 'Last Paid',
-                    value: item.lastPaidLabel,
-                    isDark: isDark,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-
-          // Action buttons
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Row(
-              children: [
-                // View Details
-                Expanded(
-                  child: _buildActionButton(
-                    label: 'Details',
-                    icon: Icons.visibility_rounded,
-                    color: AppTheme.primary,
-                    isDark: isDark,
-                    onTap: () => _onViewDetails(item),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Collect Rent
-                Expanded(
-                  child: _buildActionButton(
-                    label: 'Collect',
-                    icon: Icons.payments_rounded,
-                    color: AppTheme.success,
-                    isDark: isDark,
-                    onTap: () => _onCollectRent(item),
-                    isFilled: true,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Call
-                _buildIconButton(
-                  icon: Icons.call_rounded,
-                  color: AppTheme.info,
-                  isDark: isDark,
-                  onTap: () => _onCallTenant(item),
-                ),
-                const SizedBox(width: 8),
-                // WhatsApp
-                _buildIconButton(
-                  icon: Icons.chat_rounded,
-                  color: const Color(0xFF25D366),
-                  isDark: isDark,
-                  onTap: () => _onWhatsAppTenant(item),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoChip(IconData icon, String label, bool isDark) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12,
-            color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRentInfoTile({
-    required String label,
-    required String value,
-    Color? valueColor,
-    required bool isDark,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: isDark ? AppTheme.textSecondaryDark : AppTheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: valueColor ??
-                (isDark ? AppTheme.textPrimaryDark : AppTheme.onSurface),
-          ),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-    bool isFilled = false,
-  }) {
-    if (isFilled) {
-      return SizedBox(
-        height: 38,
-        child: ElevatedButton(
-          onPressed: onTap,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 38,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: color.withValues(alpha: 0.4)),
-          foregroundColor: color,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
             ),
           ],
         ),
@@ -1013,63 +659,156 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
     );
   }
 
-  Widget _buildIconButton({
-    required IconData icon,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 38,
-      height: 38,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: color.withValues(alpha: 0.4)),
-          foregroundColor: color,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+  Widget _buildStatusBadge(PendingRentItem item) {
+    final isOverdue = item.status == 'overdue';
+    final isDueToday = item.status == 'due_today';
+
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    if (isOverdue) {
+      bgColor = AppTheme.error.withValues(alpha: 0.1);
+      textColor = AppTheme.error;
+      label = 'Overdue';
+    } else if (isDueToday) {
+      bgColor = AppTheme.tertiaryFixed;
+      textColor = AppTheme.onTertiaryFixedVariant;
+      label = 'Due Today';
+    } else {
+      bgColor = AppTheme.secondaryContainer;
+      textColor = AppTheme.onSecondaryContainer;
+      label = 'Upcoming';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.05,
+          color: textColor,
         ),
-        child: Icon(icon, size: 18),
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return AppTheme.success;
-      case 'pending':
-        return AppTheme.error;
-      case 'partial':
-        return AppTheme.warning;
-      default:
-        return AppTheme.error;
-    }
+  Widget _buildMiniStats(bool isDark) {
+    final totalPending = _summary?.totalPendingAmount ?? 0.0;
+    final overdueAmount = _calculateOverdueAmount();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      child: Row(
+        children: [
+          // Total Pending
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'TOTAL PENDING',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.05,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${_formatAmount(totalPending)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Across ${_filteredItems.length} units',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppTheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Overdue Amount
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppTheme.error.withValues(alpha: 0.1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'OVERDUE AMOUNT',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.05,
+                      color: AppTheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${_formatAmount(overdueAmount)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Requires immediate action',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppTheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  String _getStatusLabel(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return 'PAID';
-      case 'pending':
-        return 'PENDING';
-      case 'partial':
-        return 'PARTIAL';
-      default:
-        return status.toUpperCase();
+  double _calculateOverdueAmount() {
+    double total = 0;
+    for (final item in _filteredItems) {
+      if (item.status == 'overdue') {
+        total += item.monthlyRent;
+      }
     }
-  }
-
-  String _getInitials(String name) {
-    if (name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name[0].toUpperCase();
+    return total;
   }
 
   String _formatAmount(double amount) {
@@ -1077,18 +816,5 @@ class _PendingRentScreenState extends State<PendingRentScreen> with AutomaticKee
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         );
-  }
-
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
-    } catch (_) {
-      return dateStr;
-    }
   }
 }

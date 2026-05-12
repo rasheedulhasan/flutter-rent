@@ -105,6 +105,26 @@ class TenantService {
       );
     }
   }
+
+  /// Creates a new tenant record.
+  /// POST /api/tenants
+  /// Returns the created tenant data as a Map.
+  Future<Map<String, dynamic>> createTenant(Map<String, dynamic> tenantData) async {
+    try {
+      final response = await _apiClient.post('/tenants', body: tenantData);
+
+      if (response['success'] == true && response['data'] != null) {
+        return response['data'] as Map<String, dynamic>;
+      }
+
+      throw TenantApiException(
+        message: response['message'] as String? ?? 'Failed to create tenant',
+      );
+    } catch (e) {
+      if (e is TenantApiException) rethrow;
+      throw TenantApiException(message: 'Failed to create tenant: $e');
+    }
+  }
 }
 
 /// Exception thrown when a tenant API operation fails.

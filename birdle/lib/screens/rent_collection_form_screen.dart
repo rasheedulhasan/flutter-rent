@@ -32,7 +32,9 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
   final RentCollectionService _service = RentCollectionService();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _pendingReasonController = TextEditingController();
   late DateTime _paymentDate;
+  late DateTime _rentDueDate;
   String _selectedMethod = 'bank_transfer';
   bool _sendSmsReceipt = true;
   bool _isSubmitting = false;
@@ -42,12 +44,24 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
     super.initState();
     _amountController.text = widget.collection.amount.toStringAsFixed(0);
     _paymentDate = DateTime.now();
+    // Parse due date from the collection's dueDate string or calculate from daysUntilDue
+    _rentDueDate = _parseDueDate();
+  }
+
+  DateTime _parseDueDate() {
+    if (widget.collection.dueDate.isNotEmpty) {
+      final parsed = DateTime.tryParse(widget.collection.dueDate);
+      if (parsed != null) return parsed;
+    }
+    // Fallback: calculate from daysUntilDue
+    return DateTime.now().add(Duration(days: widget.collection.daysUntilDue));
   }
 
   @override
   void dispose() {
     _amountController.dispose();
     _notesController.dispose();
+    _pendingReasonController.dispose();
     super.dispose();
   }
 
@@ -64,16 +78,31 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
       return;
     }
 
+    // Determine if this is a pending/partial payment
+    final isPendingPayment = amount < widget.collection.monthlyRent;
+    final pendingReason = _pendingReasonController.text.trim();
+
+    if (isPendingPayment && pendingReason.isEmpty) {
+      _showError('Pending reason is required for partial/pending payments');
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
+      final now = DateTime.now();
       await _service.recordPayment(
-        rentCollectionId: widget.collection.id,
-        amountPaid: amount,
-        paymentDate: _paymentDate,
+        tenantId: widget.collection.tenantId,
+        roomId: widget.collection.roomId,
+        collectedBy: 'staff_001',
+        amount: amount,
+        monthlyRent: widget.collection.monthlyRent,
+        transactionDate: _paymentDate,
+        rentDueDate: _rentDueDate,
+        periodMonth: now.month,
+        periodYear: now.year,
         paymentMethod: _selectedMethod,
-        notes: _notesController.text.isNotEmpty ? _notesController.text : null,
-        sendSmsReceipt: _sendSmsReceipt,
+        pendingReason: pendingReason,
       );
 
       if (mounted) {
@@ -88,6 +117,7 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
           ),
         );
 
+        // Pop with true to signal success and trigger refresh
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -324,6 +354,69 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
           _buildSectionLabel('PAYMENT METHOD'),
           const SizedBox(height: 12),
           _buildPaymentMethodSelector(),
+          const SizedBox(height: 24),
+
+          // Pending Reason (shown when amount < monthly rent)
+          _buildSectionLabel('PENDING REASON'),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.warning.withValues(alpha: 0.08),
+              border: Border.all(
+                color: AppTheme.warning.withValues(alpha: 0.3),
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: AppTheme.warning,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'If the amount paid is less than the full monthly rent (AED ${_formatAmount(widget.collection.monthlyRent)}), a pending reason is required.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppTheme.warning,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceContainerLowest,
+                    border: Border.all(color: AppTheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _pendingReasonController,
+                    maxLines: 2,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: AppTheme.onSurface,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Partial payment, awaiting balance...',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.all(16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
 
           // Notes / Reference

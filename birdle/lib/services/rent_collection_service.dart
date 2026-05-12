@@ -9,81 +9,46 @@ class RentCollectionService {
   RentCollectionService({ApiClient? apiClient})
       : _apiClient = apiClient ?? ApiClient();
 
-  /// Returns all pending rent collections from the API.
-  Future<List<RentCollectionModel>> getPendingCollections() async {
-    try {
-      final response = await _apiClient.get('/rent-collections');
-      if (response['success'] == true && response['data'] != null) {
-        final dataList = response['data'] as List<dynamic>;
-        return dataList
-            .map((e) => RentCollectionModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      return [];
-    } catch (e) {
-      throw RentCollectionApiException(
-          message: 'Failed to fetch rent collections: $e');
-    }
-  }
-
-  /// Searches pending collections by room number or tenant name.
-  Future<List<RentCollectionModel>> searchCollections(String query) async {
-    if (query.trim().isEmpty) return getPendingCollections();
-    try {
-      final response =
-          await _apiClient.get('/rent-collections/search', queryParams: {
-        'q': query,
-      });
-      if (response['success'] == true && response['data'] != null) {
-        final dataList = response['data'] as List<dynamic>;
-        return dataList
-            .map((e) => RentCollectionModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      return [];
-    } catch (e) {
-      throw RentCollectionApiException(
-          message: 'Failed to search rent collections: $e');
-    }
-  }
-
-  /// Returns a single collection by ID.
-  Future<RentCollectionModel?> getCollectionById(String id) async {
-    try {
-      final response = await _apiClient.get('/rent-collections/$id');
-      if (response['success'] == true && response['data'] != null) {
-        final data = response['data'] as Map<String, dynamic>;
-        return RentCollectionModel.fromJson(data);
-      }
-      return null;
-    } catch (e) {
-      throw RentCollectionApiException(
-          message: 'Failed to fetch rent collection: $e');
-    }
-  }
-
   /// Records a rent collection payment via the API.
+  /// Matches the POST /api/rent/collect endpoint.
   Future<RentCollectionRecord> recordPayment({
-    required String rentCollectionId,
-    required double amountPaid,
-    required DateTime paymentDate,
+    required String tenantId,
+    required String roomId,
+    required String collectedBy,
+    required double amount,
+    required double monthlyRent,
+    required DateTime transactionDate,
+    required DateTime rentDueDate,
+    required int periodMonth,
+    required int periodYear,
     required String paymentMethod,
-    String? notes,
-    bool sendSmsReceipt = true,
+    String pendingReason = '',
   }) async {
     try {
-      final response = await _apiClient.post('/rent-collections/pay', body: {
-        'rentCollectionId': rentCollectionId,
-        'amountPaid': amountPaid,
-        'paymentDate': paymentDate.toIso8601String(),
-        'paymentMethod': paymentMethod,
-        'notes': notes,
-        'sendSmsReceipt': sendSmsReceipt,
+      final response = await _apiClient.post('/rent/collect', body: {
+        'tenant_id': tenantId,
+        'room_id': roomId,
+        'collected_by': collectedBy,
+        'amount': amount,
+        'monthly_rent': monthlyRent,
+        'transaction_date': transactionDate.toUtc().toIso8601String(),
+        'rent_due_date': rentDueDate.toUtc().toIso8601String(),
+        'period_month': periodMonth,
+        'period_year': periodYear,
+        'payment_method': paymentMethod,
+        'pending_reason': pendingReason,
       });
 
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'] as Map<String, dynamic>;
         return RentCollectionRecord.fromJson(data);
+      }
+
+      // Handle validation errors from the API
+      if (response['success'] == false && response['details'] != null) {
+        final details = response['details'] as List<dynamic>;
+        throw RentCollectionApiException(
+            message: details.join('\n'));
       }
 
       throw RentCollectionApiException(
