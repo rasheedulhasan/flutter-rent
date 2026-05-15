@@ -354,7 +354,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${customer.company} · \$${NumberFormat('#,###').format(customer.totalSpent)} spent',
+                  '${customer.company} · د.إ${NumberFormat('#,###').format(customer.totalSpent)} spent',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,

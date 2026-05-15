@@ -86,7 +86,7 @@ class MockData {
         {
           'icon': Icons.payments_outlined,
           'title': 'Rent payment received',
-          'subtitle': 'Unit #304 - Sarah Johnson paid \$1,850',
+          'subtitle': 'Unit #304 - Sarah Johnson paid د.إ1,850',
           'time': '2 minutes ago',
           'color': 0xFF0058BC,
         },
@@ -467,7 +467,7 @@ class MockData {
         NotificationModel(
           id: 'notif_001',
           title: 'Rent Payment Received',
-          message: 'Unit #304 - Sarah Johnson paid \$1,850.00',
+          message: 'Unit #304 - Sarah Johnson paid د.إ1,850.00',
           type: 'order',
           isRead: false,
           createdAt: DateTime(2024, 12, 16, 14, 30),

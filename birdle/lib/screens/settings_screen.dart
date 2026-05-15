@@ -35,13 +35,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                'Settings',
-                style: GoogleFonts.inter(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
-                ),
+              child: Row(
+                children: [
+                  // Back button
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        color: isDark
+                            ? AppTheme.textSecondaryDark
+                            : AppTheme.onSurfaceVariant,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Settings',
+                    style: GoogleFonts.inter(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 8),

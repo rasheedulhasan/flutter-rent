@@ -227,8 +227,9 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatItem('Revenue', '\$${NumberFormat('#,###').format(stats.totalRevenue)}', isDark),
+                    _buildStatItem('Revenue', 'د.إ${NumberFormat('#,###').format(stats.totalRevenue)}', isDark),
                     _buildStatItem('Orders', '${stats.totalOrders}', isDark),
                     _buildStatItem('Customers', '${stats.newCustomers}', isDark),
                     _buildStatItem('Growth', '${stats.growthRate}%', isDark),
@@ -321,7 +322,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         return LineTooltipItem(
-                          '\$${NumberFormat('#,###').format(spot.y)}',
+                          'د.إ${NumberFormat('#,###').format(spot.y)}',
                           GoogleFonts.inter(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -441,6 +442,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
           ),
           const SizedBox(height: 20),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
                 width: 140,
@@ -493,7 +495,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
                             ),
                           ),
                           Text(
-                            '\$${NumberFormat('#,###').format(cat.amount)}',
+                            'د.إ${NumberFormat('#,###').format(cat.amount)}',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -522,11 +524,12 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
           const SectionHeader(title: 'Key Metrics'),
           const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: _buildMetricCard(
                   'Avg. Order Value',
-                  '\$${NumberFormat('#,###').format(_stats?.totalRevenue != null ? (_stats!.totalRevenue ~/ 100) : 0)}',
+                  'د.إ${NumberFormat('#,###').format(_stats?.totalRevenue != null ? (_stats!.totalRevenue ~/ 100) : 0)}',
                   Icons.receipt_rounded,
                   AppTheme.warning,
                   isDark,
@@ -546,6 +549,7 @@ class _ReportsScreenState extends State<ReportsScreen> with AutomaticKeepAliveCl
           ),
           const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: _buildMetricCard(

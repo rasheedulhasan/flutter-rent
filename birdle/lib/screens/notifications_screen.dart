@@ -115,6 +115,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               children: [
                 Row(
                   children: [
+                    // Back button
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.arrow_back_rounded,
+                          color: isDark
+                              ? AppTheme.textSecondaryDark
+                              : AppTheme.onSurfaceVariant,
+                          size: 22,
+                        ),
+                      ),
+                    ),
                     Text(
                       'Notifications',
                       style: GoogleFonts.inter(

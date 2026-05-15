@@ -257,7 +257,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '\$${order.totalAmount.toStringAsFixed(2)}',
+                  'د.إ${order.totalAmount.toStringAsFixed(2)}',
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -414,7 +414,7 @@ class _OrderDetailSheet extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                              'د.إ${(item.price * item.quantity).toStringAsFixed(2)}',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -437,7 +437,7 @@ class _OrderDetailSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '\$${order.totalAmount.toStringAsFixed(2)}',
+                        'د.إ${order.totalAmount.toStringAsFixed(2)}',
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,

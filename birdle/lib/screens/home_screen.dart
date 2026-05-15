@@ -280,6 +280,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () {
                           if (item.index >= 0) {
                             setState(() => _currentIndex = item.index);
+                          } else {
+                            // Items with index -1 navigate via named routes
+                            Navigator.of(context).pushNamed('/settings');
                           }
                         },
                         child: Container(
@@ -316,8 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     }),
-                    // Logout button at the bottom of the sidebar
-                    const Spacer(),
+                    const SizedBox(height: 8),
                     GestureDetector(
                       onTap: _handleLogout,
                       child: Container(

@@ -38,7 +38,8 @@ class PendingRentItem {
       dueDate: json['due_date'] as String? ?? '',
       overdueDays: json['overdue_days'] as int? ?? 0,
       remainingDays: json['remaining_days'] as int? ?? 0,
-      status: json['status'] as String? ?? 'upcoming',
+      // Read payment_status first (API field), fall back to status
+      status: (json['payment_status'] as String?) ?? (json['status'] as String?) ?? 'upcoming',
     );
   }
 
@@ -51,6 +52,8 @@ class PendingRentItem {
         return 'Due Today';
       case 'upcoming':
         return 'Upcoming';
+      case 'pending':
+        return 'Pending';
       default:
         return status;
     }
@@ -62,6 +65,8 @@ class PendingRentItem {
       return '$overdueDays Days Overdue';
     } else if (status == 'due_today') {
       return 'Expires tonight';
+    } else if (status == 'pending') {
+      return 'Awaiting payment';
     } else {
       return 'Due in $remainingDays Days';
     }
@@ -73,13 +78,17 @@ class PendingRentSummary {
   final int dueToday;
   final int upcoming;
   final int overdue;
-  final double totalPendingAmount;
+  final double totalCombined;
+  final double totalOverdue;
+  final double totalPending;
 
   PendingRentSummary({
     required this.dueToday,
     required this.upcoming,
     required this.overdue,
-    required this.totalPendingAmount,
+    required this.totalCombined,
+    required this.totalOverdue,
+    required this.totalPending,
   });
 
   factory PendingRentSummary.fromJson(Map<String, dynamic> json) {
@@ -87,8 +96,12 @@ class PendingRentSummary {
       dueToday: json['due_today'] as int? ?? 0,
       upcoming: json['upcoming'] as int? ?? 0,
       overdue: json['overdue'] as int? ?? 0,
-      totalPendingAmount:
-          (json['total_pending_amount'] as num?)?.toDouble() ?? 0.0,
+      totalCombined:
+          (json['total_combined'] as num?)?.toDouble() ?? 0.0,
+      totalOverdue:
+          (json['total_overdue'] as num?)?.toDouble() ?? 0.0,
+      totalPending:
+          (json['total_pending'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

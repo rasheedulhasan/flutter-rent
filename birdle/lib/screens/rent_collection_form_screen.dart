@@ -29,7 +29,8 @@ class RentCollectionFormScreen extends StatefulWidget {
 }
 
 class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
-  final RentCollectionService _service = RentCollectionService();
+  final RentCollectionService _rentCollectionService =
+      RentCollectionService();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _pendingReasonController = TextEditingController();
@@ -91,7 +92,11 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
 
     try {
       final now = DateTime.now();
-      await _service.recordPayment(
+
+      // ── Use the API-based RentCollectionService ────────────────────
+      // Communicates with the backend at /rent/collect which handles
+      // both transaction creation and rent cycle status update.
+      await _rentCollectionService.recordPayment(
         tenantId: widget.collection.tenantId,
         roomId: widget.collection.roomId,
         collectedBy: 'staff_001',
@@ -109,10 +114,12 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Payment of \$${_formatAmount(amount)} recorded for ${widget.collection.roomNumber}',
+              'Payment of د.إ${_formatAmount(amount)} recorded for '
+              '${widget.collection.roomNumber}',
             ),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -120,6 +127,8 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
         // Pop with true to signal success and trigger refresh
         Navigator.of(context).pop(true);
       }
+    } on RentCollectionApiException catch (e) {
+      _showError(e.message);
     } catch (e) {
       _showError(e.toString());
     } finally {
@@ -275,7 +284,7 @@ class _RentCollectionFormScreenState extends State<RentCollectionFormScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '\$${_formatAmount(collection.amount)}',
+                  'د.إ${_formatAmount(collection.amount)}',
                   style: GoogleFonts.inter(
                     fontSize: 30,
                     fontWeight: FontWeight.w700,

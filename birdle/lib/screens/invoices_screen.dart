@@ -186,7 +186,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> with AutomaticKeepAlive
                 ],
               ),
               Text(
-                '\$${invoice.total.toStringAsFixed(2)}',
+                'د.إ${invoice.total.toStringAsFixed(2)}',
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,

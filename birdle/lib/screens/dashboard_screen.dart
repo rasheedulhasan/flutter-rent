@@ -61,7 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       setState(() {
         _totalRooms = response.total;
         _pendingRooms = response.summary.totalItems;
-        _rentDueThisWeek = response.summary.totalPendingAmount;
+        _rentDueThisWeek = response.summary.totalCombined;
         _occupancyRate = 0; // Occupancy rate not available from this endpoint
 
         // Use authenticated user info from the singleton AuthService
@@ -242,7 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           ),
           const SizedBox(height: 16),
           Text(
-            '\$${NumberFormat('#,###').format(_rentDueThisWeek.toInt())}',
+            'د.إ${NumberFormat('#,###').format(_rentDueThisWeek.toInt())}',
             style: GoogleFonts.inter(
               fontSize: 30,
               fontWeight: FontWeight.w700,
@@ -381,7 +381,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   Widget _buildCollectRentButton() {
     return GestureDetector(
-      onTap: () {},
+      onTap: widget.onNavigateToPendingRent,
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -588,7 +588,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   Widget _buildProfileButton() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        Navigator.of(context).pushNamed('/profile');
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -642,7 +644,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   Widget _buildLogoutButton() {
     return GestureDetector(
-      onTap: () {},
+      onTap: () async {
+        final authService = AuthService();
+        await authService.logout();
+        if (!context.mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

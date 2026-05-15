@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as appwrite_models;
 import 'package:birdle/core/app_theme.dart';
 import 'package:birdle/models/pending_rent_item.dart';
 import 'package:birdle/models/rent_collection_model.dart';
 import 'package:birdle/screens/rent_collection_form_screen.dart';
+import 'package:birdle/services/appwrite_client.dart';
 import 'package:birdle/services/pending_rent_service.dart';
 import 'package:birdle/widgets/empty_state.dart';
 import 'package:birdle/widgets/skeleton_loader.dart';
@@ -34,6 +37,9 @@ class _PendingRentScreenState extends State<PendingRentScreen>
   PendingRentSummary? _summary;
   bool _isLoading = true;
   String? _errorMessage;
+
+  // ── Appwrite Databases instance for direct queries ────────────────
+  final Databases _databases = AppwriteClient().databases;
 
   @override
   bool get wantKeepAlive => true;
@@ -77,6 +83,47 @@ class _PendingRentScreenState extends State<PendingRentScreen>
           _isLoading = false;
         });
       }
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────
+  // Appwrite Query Example: Pending Rent List
+  // ───────────────────────────────────────────────────────────────────
+  //
+  // The method below demonstrates how to query the Appwrite rent_cycles
+  // collection using `Query.equal('status', 'pending')` to fetch only
+  // unpaid/pending rent records.
+  //
+  // Once a rent collection is processed via
+  // [RentCollectionAppwriteService.recordPayment], the status is updated
+  // to "paid", so this query will automatically exclude it from results.
+  //
+  // Usage:
+  //   final items = await _fetchPendingRentCycles();
+  //
+  // ── Appwrite Query Reference ───────────────────────────────────────
+  //   Query.equal('status', 'pending')     → status == "pending"
+  //   Query.notEqual('status', 'paid')     → status != "paid"
+  //   Query.orderDesc('due_date')          → newest due dates first
+  //   Query.limit(25)                      → pagination: 25 per page
+  //   Query.offset(0)                      → pagination: start at 0
+  // ───────────────────────────────────────────────────────────────────
+  // ignore: unused_element
+  Future<List<appwrite_models.Document>> _fetchPendingRentCycles() async {
+    try {
+      final response = await _databases.listDocuments(
+        databaseId: AppwriteClient.databaseId,
+        collectionId: AppwriteClient.rentCyclesCollectionId,
+        queries: [
+          Query.equal('status', 'pending'),   // ← only pending items
+          Query.orderDesc('due_date'),        // ← most urgent first
+          Query.limit(50),                    // ← max 50 results
+        ],
+      );
+      return response.documents;
+    } catch (e) {
+      debugPrint('Failed to fetch pending rent cycles: $e');
+      rethrow;
     }
   }
 
@@ -182,9 +229,7 @@ class _PendingRentScreenState extends State<PendingRentScreen>
               children: [
                 // Back button
                 GestureDetector(
-                  onTap: () {
-                    // TODO: Navigate back
-                  },
+                  onTap: () => Navigator.of(context).pop(),
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     margin: const EdgeInsets.only(right: 4),
@@ -559,7 +604,7 @@ class _PendingRentScreenState extends State<PendingRentScreen>
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '\$${_formatAmount(item.monthlyRent)}',
+                      'د.إ${_formatAmount(item.monthlyRent)}',
                       style: GoogleFonts.inter(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -660,25 +705,28 @@ class _PendingRentScreenState extends State<PendingRentScreen>
   }
 
   Widget _buildStatusBadge(PendingRentItem item) {
-    final isOverdue = item.status == 'overdue';
-    final isDueToday = item.status == 'due_today';
-
+    // Map status directly from API's payment_status field
     Color bgColor;
     Color textColor;
-    String label;
 
-    if (isOverdue) {
-      bgColor = AppTheme.error.withValues(alpha: 0.1);
-      textColor = AppTheme.error;
-      label = 'Overdue';
-    } else if (isDueToday) {
-      bgColor = AppTheme.tertiaryFixed;
-      textColor = AppTheme.onTertiaryFixedVariant;
-      label = 'Due Today';
-    } else {
-      bgColor = AppTheme.secondaryContainer;
-      textColor = AppTheme.onSecondaryContainer;
-      label = 'Upcoming';
+    switch (item.status) {
+      case 'overdue':
+        // Red
+        bgColor = AppTheme.error.withValues(alpha: 0.1);
+        textColor = AppTheme.error;
+      case 'due_today':
+        // Orange
+        bgColor = AppTheme.tertiaryFixed;
+        textColor = AppTheme.onTertiaryFixedVariant;
+      case 'pending':
+        // Yellow
+        bgColor = AppTheme.warning.withValues(alpha: 0.15);
+        textColor = AppTheme.warning;
+      case 'upcoming':
+      default:
+        // Blue / Orange
+        bgColor = AppTheme.primary.withValues(alpha: 0.1);
+        textColor = AppTheme.primary;
     }
 
     return Container(
@@ -688,7 +736,7 @@ class _PendingRentScreenState extends State<PendingRentScreen>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        label,
+        item.statusLabel,
         style: GoogleFonts.inter(
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -700,12 +748,13 @@ class _PendingRentScreenState extends State<PendingRentScreen>
   }
 
   Widget _buildMiniStats(bool isDark) {
-    final totalPending = _summary?.totalPendingAmount ?? 0.0;
-    final overdueAmount = _calculateOverdueAmount();
+    final totalPending = _summary?.totalCombined ?? 0.0;
+    final overdueAmount = _summary?.totalOverdue ?? 0.0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Total Pending
           Expanded(
@@ -732,7 +781,7 @@ class _PendingRentScreenState extends State<PendingRentScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${_formatAmount(totalPending)}',
+                    'د.إ${_formatAmount(totalPending)}',
                     style: GoogleFonts.inter(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
@@ -777,7 +826,7 @@ class _PendingRentScreenState extends State<PendingRentScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${_formatAmount(overdueAmount)}',
+                    'د.إ${_formatAmount(overdueAmount)}',
                     style: GoogleFonts.inter(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
@@ -799,16 +848,6 @@ class _PendingRentScreenState extends State<PendingRentScreen>
         ],
       ),
     );
-  }
-
-  double _calculateOverdueAmount() {
-    double total = 0;
-    for (final item in _filteredItems) {
-      if (item.status == 'overdue') {
-        total += item.monthlyRent;
-      }
-    }
-    return total;
   }
 
   String _formatAmount(double amount) {

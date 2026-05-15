@@ -367,7 +367,7 @@ class _TenantsScreenState extends State<TenantsScreen> with AutomaticKeepAliveCl
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${tenant.phoneNumber} · \$${NumberFormat('#,###').format(tenant.monthlyRent)}/mo',
+                  '${tenant.phoneNumber} · د.إ${NumberFormat('#,###').format(tenant.monthlyRent)}/mo',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
